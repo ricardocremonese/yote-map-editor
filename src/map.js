@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, useState } from 'react';
-import { MapContainer, TileLayer, FeatureGroup, useMap, LayersControl, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, FeatureGroup, useMap, LayersControl } from 'react-leaflet';
 import { EditControl } from 'react-leaflet-draw';
 import L from 'leaflet';
 import * as turf from '@turf/turf';
@@ -17,14 +17,28 @@ export default function MapEditor() {
 
   useEffect(() => {
     window.addEventListener('message', (event) => {
-      const { type } = event.data;
-
+      const { type, color, label } = event.data;
       if (type === 'toggleBaseMap' && mapRef && tileLayerRef.current) {
         if (mapRef.hasLayer(tileLayerRef.current)) {
           mapRef.removeLayer(tileLayerRef.current);
         } else {
           tileLayerRef.current.addTo(mapRef);
         }
+      }
+      if (type === 'applyColorToSelected' && color) {
+        const layerGroup = featureGroupRef.current;
+        layerGroup?.eachLayer(layer => {
+          if (layer.options && layer.options.selected) {
+            layer.setStyle({ color, fillOpacity: 0.4, weight: 2 });
+            if (label) {
+              const latlng = layer.options.centerLatLng;
+              if (latlng) {
+                const labelMarker = createLabel(latlng, label);
+                labelMarker.addTo(labelLayerGroup.current);
+              }
+            }
+          }
+        });
       }
     });
   }, [mapRef]);
@@ -45,20 +59,25 @@ export default function MapEditor() {
       const areaM2 = turf.area(geojson);
       const areaHa = areaM2 / 10000;
       const areaAcres = (areaHa * 2.47105).toFixed(2);
-
       const center = turf.centerOfMass(geojson).geometry.coordinates;
       const labelText = prompt("Nome do bloco:", "Bloco A") || "Bloco";
       const latlng = [center[1], center[0]];
-
       const label = createLabel(latlng, `${labelText}<br>${areaAcres} ac`);
       label.addTo(labelLayerGroup.current);
-
       layer.setStyle({ color: "#4caf50", fillOpacity: 0.4, weight: 2 });
-      layer.bindPopup(`
-        <b>${labelText}</b><br>
-        Área: ${areaAcres} acres<br>
-        Coordenadas: ${latlng[0].toFixed(6)}, ${latlng[1].toFixed(6)}
-      `);
+      layer.options.centerLatLng = latlng;
+      layer.options.selected = false;
+      layer.bindPopup(
+        `<b>${labelText}</b><br>Área: ${areaAcres} acres<br>Coordenadas: ${latlng[0].toFixed(6)}, ${latlng[1].toFixed(6)}`
+      );
+      layer.on("click", () => {
+        layer.options.selected = !layer.options.selected;
+        layer.setStyle({
+          ...layer.options,
+          dashArray: layer.options.selected ? "4,4" : null,
+          weight: layer.options.selected ? 4 : 2
+        });
+      });
     }
 
     if (geojson.geometry.type === "LineString") {
@@ -68,9 +87,10 @@ export default function MapEditor() {
       const latlng = [middle[1], middle[0]];
       const label = createLabel(latlng, labelText);
       label.addTo(labelLayerGroup.current);
-
       layer.setStyle({ color: "#000000", weight: 5, dashArray: "5,5" });
-      layer.bindPopup(`<b>${labelText}</b><br>Coordenadas: ${latlng[0].toFixed(6)}, ${latlng[1].toFixed(6)}`);
+      layer.bindPopup(
+        `<b>${labelText}</b><br>Coordenadas: ${latlng[0].toFixed(6)}, ${latlng[1].toFixed(6)}`
+      );
     }
   };
 
@@ -82,7 +102,7 @@ export default function MapEditor() {
       const [lat, lng] = input.split(',').map(Number);
       mapRef.setView([lat, lng], 18);
     } else {
-      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=\${input}`)
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${input}`)
         .then(res => res.json())
         .then(data => {
           if (data.length > 0) {
@@ -116,7 +136,6 @@ export default function MapEditor() {
           osm.addTo(map);
           tileLayerRef.current = osm;
           setMapRef(map);
-
           const labels = L.layerGroup().addTo(map);
           labelLayerGroup.current = labels;
         }}
@@ -141,9 +160,7 @@ export default function MapEditor() {
             position="topright"
             onCreated={handleCreated}
             draw={{
-              polygon: {
-                shapeOptions: { allowIntersection: false, showArea: true }
-              },
+              polygon: { shapeOptions: { allowIntersection: false, showArea: true } },
               rectangle: true,
               polyline: {
                 shapeOptions: {
