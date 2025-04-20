@@ -23,23 +23,30 @@ export default function MapEditor() {
       const areaM2 = turf.area(geojson);
       const areaHa = (areaM2 / 10000).toFixed(2);
       const areaAcres = (areaHa * 2.47105).toFixed(2);
-
       const perimeter = turf.length(geojson, { units: 'kilometers' }).toFixed(2);
-
       const nome = prompt("Nome do bloco:", "Bloco A") || "Bloco";
 
       layer.setStyle({ color: "#4caf50", fillOpacity: 0.4, weight: 2 });
       layer.options.selected = false;
 
-      const popupContent = `
-        <b>${nome}</b><br>
-        🌱 Plantado em: 01/02/2025<br>
-        💧 Última aplicação: 10/04/2025<br>
-        📏 Perímetro: ${perimeter} km<br>
-        📐 Área: ${areaHa} ha (${areaAcres} acres)
+      const popupContent = document.createElement("div");
+      popupContent.innerHTML = `
+        <b>${nome}</b><br><br>
+        <label>🌱 Plantado em:</label><br>
+        <input type="date" id="plantio" /><br>
+        <label>💧 Última aplicação:</label><br>
+        <input type="date" id="aplicacao" /><br>
+        <label>🚜 Próxima colheita:</label><br>
+        <input type="date" id="colheita" /><br><br>
+        <div id="result-info">
+          📏 Perímetro: ${perimeter} km<br>
+          📐 Área: ${areaHa} ha (${areaAcres} acres)
+        </div>
       `;
 
-      layer.bindPopup(popupContent);
+      const popup = L.popup().setContent(popupContent);
+
+      layer.bindPopup(popup);
 
       layer.on("click", () => {
         layer.options.selected = !layer.options.selected;
