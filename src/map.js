@@ -54,11 +54,11 @@ export default function MapEditor() {
       label.addTo(labelLayerGroup.current);
 
       layer.setStyle({ color: "#4caf50", fillOpacity: 0.4, weight: 2 });
-      layer.bindPopup(\`
+      layer.bindPopup(`
         <b>${labelText}</b><br>
         Área: ${areaAcres} acres<br>
         Coordenadas: ${latlng[0].toFixed(6)}, ${latlng[1].toFixed(6)}
-      \`);
+      `);
     }
 
     if (geojson.geometry.type === "LineString") {
@@ -82,7 +82,7 @@ export default function MapEditor() {
       const [lat, lng] = input.split(',').map(Number);
       mapRef.setView([lat, lng], 18);
     } else {
-      fetch(\`https://nominatim.openstreetmap.org/search?format=json&q=\${input}\`)
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=\${input}`)
         .then(res => res.json())
         .then(data => {
           if (data.length > 0) {
