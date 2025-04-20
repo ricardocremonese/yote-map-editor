@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { MapContainer, TileLayer, FeatureGroup, useMap } from 'react-leaflet';
 import { EditControl } from 'react-leaflet-draw';
 import * as turf from '@turf/turf';
@@ -8,34 +8,58 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 
-function LayersControl() {
+const colorOptions = {
+  "Verde": "#4CAF50",
+  "Amarelo": "#FFEB3B",
+  "Vermelho": "#F44336",
+  "Laranja": "#FF9800",
+  "Roxo": "#9C27B0",
+  "Branco": "#FFFFFF",
+  "Azul": "#2196F3",
+  "Rosa": "#E91E63",
+  "Turquesa": "#00BCD4"
+};
+
+function LegendPanel({ onToggleBaseLayer, baseLayerVisible }) {
   const map = useMap();
 
-  const baseLayers = {
-    "Mapa Padrão": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
-    "Satélite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}')
-  };
-
-  L.control.layers(baseLayers).addTo(map);
-  baseLayers["Mapa Padrão"].addTo(map);
-
   useEffect(() => {
-    map.on("click", function (e) {
-      const { lat, lng } = e.latlng;
-      L.popup()
-        .setLatLng([lat, lng])
-        .setContent(`📍 Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`)
-        .openOn(map);
+    const controlDiv = L.DomUtil.create('div', 'custom-panel');
+    controlDiv.style.position = 'absolute';
+    controlDiv.style.top = '100px';
+    controlDiv.style.right = '10px';
+    controlDiv.style.background = '#fff';
+    controlDiv.style.padding = '10px';
+    controlDiv.style.border = '1px solid #ccc';
+    controlDiv.style.zIndex = '1000';
+
+    let html = "<strong>Legenda</strong><br>";
+    Object.entries(colorOptions).forEach(([name, hex]) => {
+      html += `<div style="margin-bottom:4px;"><span style="background:${hex}; width:12px; height:12px; display:inline-block; margin-right:6px;"></span>${name}</div>`;
     });
-  }, [map]);
+    html += `<hr><button id="toggle-map">${baseLayerVisible ? "Ocultar Mapa" : "Mostrar Mapa"}</button>`;
+
+    controlDiv.innerHTML = html;
+    document.body.appendChild(controlDiv);
+
+    const toggleButton = document.getElementById('toggle-map');
+    toggleButton.onclick = () => onToggleBaseLayer();
+
+    return () => {
+      document.body.removeChild(controlDiv);
+    };
+  }, [map, onToggleBaseLayer, baseLayerVisible]);
 
   return null;
 }
 
 export default function MapEditor() {
   const featureGroupRef = useRef(null);
+  const [baseLayer, setBaseLayer] = useState(null);
+  const [baseLayerVisible, setBaseLayerVisible] = useState(true);
+  const baseLayerRef = useRef(null);
 
-  const handleCreated = (e) => {
+  const handleCreated = async (e) => {
     const layer = e.layer;
     const geojson = layer.toGeoJSON();
 
@@ -44,13 +68,12 @@ export default function MapEditor() {
     const areaAcres = (areaHa * 2.47105).toFixed(2);
 
     const nomeBloco = prompt("Nome do bloco:", "Bloco A") || "Bloco sem nome";
-    const color = prompt("Cor do bloco (ex: #ff0000):", "#3388ff") || "#3388ff";
+    const colorName = prompt("Cor (Verde, Amarelo, etc):", "Verde") || "Verde";
+    const color = colorOptions[colorName] || "#3388ff";
 
-    layer.setStyle({ color });
-
+    layer.setStyle({ color, fillOpacity: 0.4, weight: 2 });
     layer.bindPopup(`<b>${nomeBloco}</b><br>📏 ${areaHa} ha (${areaAcres} acres)`).openPopup();
 
-    // Salvar nos properties do GeoJSON (para uso futuro com Supabase)
     layer.feature = {
       type: "Feature",
       properties: {
@@ -63,9 +86,39 @@ export default function MapEditor() {
     };
   };
 
+  const toggleBaseLayer = () => {
+    if (baseLayerRef.current) {
+      if (baseLayerVisible) {
+        baseLayerRef.current.remove();
+      } else {
+        baseLayerRef.current.addTo(baseLayer);
+      }
+      setBaseLayerVisible(!baseLayerVisible);
+    }
+  };
+
   return (
-    <MapContainer center={[-23.5, -46.6]} zoom={17} maxZoom={22} style={{ height: '100vh' }}>
-      <LayersControl />
+    <MapContainer
+      center={[-23.5, -46.6]}
+      zoom={17}
+      maxZoom={22}
+      style={{ height: '100vh' }}
+      whenCreated={(map) => {
+        const layer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+        baseLayerRef.current = layer;
+        setBaseLayer(map);
+        layer.addTo(map);
+
+        map.on("click", function (e) {
+          const { lat, lng } = e.latlng;
+          L.popup()
+            .setLatLng([lat, lng])
+            .setContent(`📍 Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`)
+            .openOn(map);
+        });
+      }}
+    >
+      <LegendPanel onToggleBaseLayer={toggleBaseLayer} baseLayerVisible={baseLayerVisible} />
       <FeatureGroup ref={featureGroupRef}>
         <EditControl
           position="topright"
