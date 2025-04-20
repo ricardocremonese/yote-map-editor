@@ -20,42 +20,36 @@ const colorOptions = {
   "Turquesa": "#00BCD4"
 };
 
-function LegendPanel({ onToggleBaseLayer, baseLayerVisible }) {
+function LegendIfPDF() {
   const map = useMap();
 
   useEffect(() => {
-    const controlDiv = L.DomUtil.create('div', 'custom-panel');
-    controlDiv.style.position = 'absolute';
-    controlDiv.style.top = '100px';
-    controlDiv.style.right = '10px';
-    controlDiv.style.background = '#fff';
-    controlDiv.style.padding = '10px';
-    controlDiv.style.border = '1px solid #ccc';
-    controlDiv.style.zIndex = '1000';
+    const showLegend = window.location.search.includes("pdf");
 
-    let html = "<strong>Legenda</strong><br>";
-    Object.entries(colorOptions).forEach(([name, hex]) => {
-      html += `<div style="margin-bottom:4px;"><span style="background:${hex}; width:12px; height:12px; display:inline-block; margin-right:6px;"></span>${name}</div>`;
-    });
-    html += `<hr><button id="toggle-map">${baseLayerVisible ? "Ocultar Mapa" : "Mostrar Mapa"}</button>`;
+    if (!showLegend) return;
 
-    controlDiv.innerHTML = html;
-    document.body.appendChild(controlDiv);
-
-    const toggleButton = document.getElementById('toggle-map');
-    toggleButton.onclick = () => onToggleBaseLayer();
-
-    return () => {
-      document.body.removeChild(controlDiv);
+    const legend = L.control({ position: "bottomright" });
+    legend.onAdd = function () {
+      const div = L.DomUtil.create("div", "info legend");
+      div.style.background = "#fff";
+      div.style.padding = "10px";
+      div.style.border = "1px solid #ccc";
+      div.style.fontSize = "12px";
+      div.innerHTML += "<strong>Legenda</strong><br>";
+      Object.entries(colorOptions).forEach(([name, hex]) => {
+        div.innerHTML += `<i style="background:${hex}; width:12px; height:12px; display:inline-block; margin-right:5px;"></i> ${name}<br>`;
+      });
+      return div;
     };
-  }, [map, onToggleBaseLayer, baseLayerVisible]);
+    legend.addTo(map);
+  }, [map]);
 
   return null;
 }
 
 export default function MapEditor() {
   const featureGroupRef = useRef(null);
-  const [baseLayer, setBaseLayer] = useState(null);
+  const [mapRef, setMapRef] = useState(null);
   const [baseLayerVisible, setBaseLayerVisible] = useState(true);
   const baseLayerRef = useRef(null);
 
@@ -87,11 +81,11 @@ export default function MapEditor() {
   };
 
   const toggleBaseLayer = () => {
-    if (baseLayerRef.current) {
+    if (baseLayerRef.current && mapRef) {
       if (baseLayerVisible) {
-        baseLayerRef.current.remove();
+        mapRef.removeLayer(baseLayerRef.current);
       } else {
-        baseLayerRef.current.addTo(baseLayer);
+        baseLayerRef.current.addTo(mapRef);
       }
       setBaseLayerVisible(!baseLayerVisible);
     }
@@ -106,7 +100,7 @@ export default function MapEditor() {
       whenCreated={(map) => {
         const layer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
         baseLayerRef.current = layer;
-        setBaseLayer(map);
+        setMapRef(map);
         layer.addTo(map);
 
         map.on("click", function (e) {
@@ -118,7 +112,7 @@ export default function MapEditor() {
         });
       }}
     >
-      <LegendPanel onToggleBaseLayer={toggleBaseLayer} baseLayerVisible={baseLayerVisible} />
+      <LegendIfPDF />
       <FeatureGroup ref={featureGroupRef}>
         <EditControl
           position="topright"
