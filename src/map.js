@@ -1,6 +1,6 @@
 
-import React, { useRef } from 'react';
-import { MapContainer, TileLayer, FeatureGroup, useMap } from 'react-leaflet';
+import React, { useRef, useEffect } from 'react';
+import { MapContainer, TileLayer, FeatureGroup, LayersControl, useMap } from 'react-leaflet';
 import { EditControl } from 'react-leaflet-draw';
 import * as turf from '@turf/turf';
 import L from 'leaflet';
@@ -8,87 +8,98 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 
+const { BaseLayer } = LayersControl;
+
 const colorOptions = {
-  "Verde": "#4CAF50",
-  "Amarelo": "#FFEB3B",
-  "Vermelho": "#F44336",
-  "Laranja": "#FF9800",
-  "Roxo": "#9C27B0",
-  "Branco": "#FFFFFF",
-  "Azul": "#2196F3",
-  "Rosa": "#E91E63",
-  "Turquesa": "#00BCD4"
+  "vermelho": "#f44336",
+  "rosa": "#e91e63",
+  "roxo": "#9c27b0",
+  "roxoEscuro": "#673ab7",
+  "azulEscuro": "#3f51b5",
+  "azul": "#2196f3",
+  "azulClaro": "#03a9f4",
+  "turquesa": "#00bcd4",
+  "verde": "#4caf50",
+  "verdeClaro": "#8bc34a",
+  "lima": "#cddc39",
+  "amareloClaro": "#ffeb3b",
+  "amarelo": "#ffc107",
+  "laranja": "#ff9800",
+  "laranjaEscuro": "#ff5722",
+  "marrom": "#795548",
+  "cinza": "#9e9e9e",
+  "cinzaClaro": "#cfd8dc",
+  "bege": "#d7ccc8"
 };
-
-function LegendIfPDF() {
-  const map = useMap();
-
-  React.useEffect(() => {
-    const showLegend = window.location.search.includes("pdf");
-
-    if (!showLegend) return;
-
-    const legend = L.control({ position: "bottomright" });
-    legend.onAdd = function () {
-      const div = L.DomUtil.create("div", "info legend");
-      div.style.background = "#fff";
-      div.style.padding = "10px";
-      div.style.border = "1px solid #ccc";
-      div.style.fontSize = "12px";
-      div.innerHTML += "<strong>Legenda</strong><br>";
-      Object.entries(colorOptions).forEach(([name, hex]) => {
-        div.innerHTML += `<i style="background:${hex}; width:12px; height:12px; display:inline-block; margin-right:5px;"></i> ${name}<br>`;
-      });
-      return div;
-    };
-    legend.addTo(map);
-  }, [map]);
-
-  return null;
-}
 
 export default function MapEditor() {
   const featureGroupRef = useRef(null);
 
+  useEffect(() => {
+    const handleMessage = (event) => {
+      const { type, color, label } = event.data;
+      if (type === "applyColorToSelected" && color) {
+        const layerGroup = featureGroupRef.current;
+        if (!layerGroup) return;
+
+        layerGroup.eachLayer(layer => {
+          if (layer.options && layer.options.selected) {
+            layer.setStyle({ color, fillOpacity: 0.4 });
+            if (label) {
+              layer.bindPopup(`<b>${label}</b>`).openPopup();
+            }
+          }
+        });
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
   const handleCreated = (e) => {
     const layer = e.layer;
     const geojson = layer.toGeoJSON();
-
     const areaM2 = turf.area(geojson);
     const areaHa = (areaM2 / 10000).toFixed(2);
     const areaAcres = (areaHa * 2.47105).toFixed(2);
+    const color = "#4caf50";
 
-    const nomeBloco = prompt("Nome do bloco:", "Bloco A") || "Bloco sem nome";
-    const colorName = prompt("Cor (Verde, Amarelo, etc):", "Verde") || "Verde";
-    const color = colorOptions[colorName] || "#3388ff";
+    layer.setStyle({ color, fillOpacity: 0.4 });
+    layer.options.selected = false;
+    layer.bindPopup(`📏 ${areaHa} ha (${areaAcres} acres)`).openPopup();
 
-    layer.setStyle({ color, fillOpacity: 0.4, weight: 2 });
-    layer.bindPopup(`<b>${nomeBloco}</b><br>📏 ${areaHa} ha (${areaAcres} acres)`).openPopup();
-
-    layer.feature = {
-      type: "Feature",
-      properties: {
-        nome: nomeBloco,
-        color,
-        areaHa,
-        areaAcres
-      },
-      geometry: geojson.geometry
-    };
+    layer.on("click", function () {
+      layer.options.selected = !layer.options.selected;
+      layer.setStyle({
+        ...layer.options,
+        weight: layer.options.selected ? 4 : 2,
+        dashArray: layer.options.selected ? "5,5" : null
+      });
+    });
   };
 
   return (
-    <MapContainer
-      center={[-23.5, -46.6]}
-      zoom={17}
-      maxZoom={22}
-      style={{ height: '100vh' }}
-    >
-      <TileLayer
-        attribution='&copy; OpenStreetMap contributors'
-        url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-      />
-      <LegendIfPDF />
+    <MapContainer center={[-23.5, -46.6]} zoom={17} maxZoom={22} style={{ height: '100vh' }}>
+      <LayersControl position="topright">
+        <BaseLayer checked name="Mapa Padrão">
+          <TileLayer
+            attribution='&copy; OpenStreetMap contributors'
+            url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+            tileSize={256}
+            maxNativeZoom={19}
+            maxZoom={22}
+          />
+        </BaseLayer>
+        <BaseLayer name="Satélite">
+          <TileLayer
+            attribution='Tiles &copy; Esri'
+            url='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+            maxZoom={22}
+          />
+        </BaseLayer>
+      </LayersControl>
+
       <FeatureGroup ref={featureGroupRef}>
         <EditControl
           position="topright"
