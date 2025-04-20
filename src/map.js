@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef } from 'react';
 import { MapContainer, TileLayer, FeatureGroup, useMap } from 'react-leaflet';
 import { EditControl } from 'react-leaflet-draw';
 import * as turf from '@turf/turf';
@@ -23,7 +23,7 @@ const colorOptions = {
 function LegendIfPDF() {
   const map = useMap();
 
-  useEffect(() => {
+  React.useEffect(() => {
     const showLegend = window.location.search.includes("pdf");
 
     if (!showLegend) return;
@@ -49,11 +49,8 @@ function LegendIfPDF() {
 
 export default function MapEditor() {
   const featureGroupRef = useRef(null);
-  const [mapRef, setMapRef] = useState(null);
-  const [baseLayerVisible, setBaseLayerVisible] = useState(true);
-  const baseLayerRef = useRef(null);
 
-  const handleCreated = async (e) => {
+  const handleCreated = (e) => {
     const layer = e.layer;
     const geojson = layer.toGeoJSON();
 
@@ -80,38 +77,17 @@ export default function MapEditor() {
     };
   };
 
-  const toggleBaseLayer = () => {
-    if (baseLayerRef.current && mapRef) {
-      if (baseLayerVisible) {
-        mapRef.removeLayer(baseLayerRef.current);
-      } else {
-        baseLayerRef.current.addTo(mapRef);
-      }
-      setBaseLayerVisible(!baseLayerVisible);
-    }
-  };
-
   return (
     <MapContainer
       center={[-23.5, -46.6]}
       zoom={17}
       maxZoom={22}
       style={{ height: '100vh' }}
-      whenCreated={(map) => {
-        const layer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
-        baseLayerRef.current = layer;
-        setMapRef(map);
-        layer.addTo(map);
-
-        map.on("click", function (e) {
-          const { lat, lng } = e.latlng;
-          L.popup()
-            .setLatLng([lat, lng])
-            .setContent(`📍 Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`)
-            .openOn(map);
-        });
-      }}
     >
+      <TileLayer
+        attribution='&copy; OpenStreetMap contributors'
+        url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+      />
       <LegendIfPDF />
       <FeatureGroup ref={featureGroupRef}>
         <EditControl
