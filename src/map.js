@@ -19,19 +19,6 @@ export default function MapEditor() {
   const [mapRef, setMapRef] = useState(null);
   const tileLayerRef = useRef(null);
 
-  useEffect(() => {
-    window.addEventListener("message", (event) => {
-      const { type, color } = event.data;
-      if (type === "applyColorToSelected" && color) {
-        featureGroupRef.current?.eachLayer((layer) => {
-          if (layer.options?.selected) {
-            layer.setStyle({ color, fillOpacity: 0.6, weight: 2 });
-          }
-        });
-      }
-    });
-  }, []);
-
   const gerarPDF = async () => {
     if (!mapRef || !tileLayerRef.current) return;
 
@@ -58,7 +45,13 @@ export default function MapEditor() {
       if (error) {
         alert("Erro ao enviar PDF ao Supabase");
       } else {
-        alert("PDF salvo nos relatórios com sucesso!");
+        const urlPublica = `${supabase.storage.from('relatorios').getPublicUrl(filePath).publicURL}`;
+        await supabase.from('relatorios_fazenda').insert({
+          fazenda_id: '123',
+          bloco_nome: 'Bloco A',
+          pdf_url: urlPublica
+        });
+        alert("PDF salvo e registrado na tabela relatorios_fazenda!");
       }
 
       tileLayerRef.current.addTo(mapRef);
