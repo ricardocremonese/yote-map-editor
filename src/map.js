@@ -63,7 +63,7 @@ export default function MapEditor() {
       const nome = prompt("Nome do bloco:", "Bloco A") || "Bloco";
 
       layer.setStyle({ color: "#4caf50", fillOpacity: 0.4, weight: 2 });
-      layer.bindTooltip(`📐 \${area} ha | 📏 ${perimeter} km`, {
+      layer.bindTooltip(`📐 ${area} ha | 📏 ${perimeter} km`, {
         permanent: true,
         direction: "center",
         className: "tooltip-label"
@@ -166,3 +166,20 @@ export default function MapEditor() {
     </div>
   );
 }
+
+
+useEffect(() => {
+  window.addEventListener("message", (event) => {
+    if (event.data.type === "applyColorToSelected" && event.data.color) {
+      featureGroupRef.current?.eachLayer((layer) => {
+        if (layer.options.selected) {
+          layer.setStyle({
+            color: event.data.color,
+            fillOpacity: 0.4,
+            weight: 2
+          });
+        }
+      });
+    }
+  });
+}, []);
