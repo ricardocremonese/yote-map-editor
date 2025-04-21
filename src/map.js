@@ -1,11 +1,12 @@
 
 import React, { useRef, useEffect, useState } from 'react';
-import { MapContainer, TileLayer, FeatureGroup, LayersControl, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, FeatureGroup, LayersControl } from 'react-leaflet';
 import { EditControl } from 'react-leaflet-draw';
 import L from 'leaflet';
 import * as turf from '@turf/turf';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { supabase } from './supabaseClient';
 
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
@@ -38,15 +39,27 @@ export default function MapEditor() {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     const mapCanvas = mapContainerRef.current;
-    html2canvas(mapCanvas, { useCORS: true }).then(canvas => {
-      const imgData = canvas.toDataURL("image/png");
+    html2canvas(mapCanvas, { useCORS: true }).then(async (canvas) => {
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'px',
         format: [canvas.width, canvas.height]
       });
+
+      const imgData = canvas.toDataURL("image/png");
       pdf.addImage(imgData, 'PNG', 0, 0);
-      pdf.save("mapa.pdf");
+
+      const blob = pdf.output("blob");
+      const filePath = `relatorios/fazenda123/blocoA_${Date.now()}.pdf`;
+      const { error } = await supabase.storage.from('relatorios').upload(filePath, blob, {
+        contentType: 'application/pdf'
+      });
+
+      if (error) {
+        alert("Erro ao enviar PDF ao Supabase");
+      } else {
+        alert("PDF salvo nos relatórios com sucesso!");
+      }
 
       tileLayerRef.current.addTo(mapRef);
     });
@@ -64,12 +77,12 @@ export default function MapEditor() {
 
       layer.setStyle({ color: "#4caf50", fillOpacity: 0.6, weight: 2 });
       layer.bindPopup(
-        `<b>\${nome}</b><br>
+        `<b>${nome}</b><br>
         🌱 Plantio: <input type="date"><br>
         💧 Aplicação: <input type="date"><br>
         🚜 Colheita: <input type="date"><br><br>
-        📏 Perímetro: \${perimeter} km<br>
-        📐 Área: \${areaHa} ha (\${areaAcres} acres)`
+        📏 Perímetro: ${perimeter} km<br>
+        📐 Área: ${areaHa} ha (${areaAcres} acres)`
       );
 
       layer.on("click", () => {
